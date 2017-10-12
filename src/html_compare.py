@@ -10,31 +10,139 @@ def main():
     if file_path_1 == file_path_2:
         print("Files point to same directory. Files match.")
     else:
-        file_1_html = read_html_files(file_path_1)
-        file_2_html = read_html_files(file_path_2)
+        file_1_html = read_html_file(file_path_1)
+        file_2_html = read_html_file(file_path_2)
 
         # again saving compute time
         if file_1_html == file_2_html:
             print("Files match.")
         else:
-            diff = html_split(file_path_1, file_path_2)
-            print(diff)
+            file_1_stripped = strip_new_lines(file_1_html)
+            file_1_line_preserved = replace_new_lines(file_1_html)
+            file_1_line_count = 0
+            file_2_stripped = strip_new_lines(file_2_html)
+            file_2_line_preserved = replace_new_lines(file_2_html)
+            file_2_line_count = 0
+
+            continue_at_index = -1
+
+            for index in range(0, len(file_1_stripped)):
+                print(file_1_stripped[index] + " / " + file_2_stripped[index])
+                if index >= len(file_2_stripped):
+                    print("ERROR: Unexpected end of file 2. Aborting operation.")
+                    break
+                if file_1_stripped[index] != file_2_stripped[index]:
+                    error = find_error(file_1_stripped, file_2_stripped, file_1_line_preserved, file_2_line_preserved, index)
+                    if error:
+                        break
 
 
-def read_html_files(file_path: str)->list:
-    html_file_return = []
-    with open(file_path) as file:
+def find_error(file_1: str, file_2: str, file_1_lines: str, file_2_lines: str, start_index: int)->bool:
+
+    # gets the nearest start tags for both files
+    file_1_start_tag = find_previous_open_tag(file_1, start_index)
+    file_2_start_tag = find_previous_open_tag(file_2, start_index)
+
+    # gets the nearest end tags for both files
+    file_1_end_tag = find_matching_close_tag(file_1, start_index, file_1_start_tag[0])
+    file_2_end_tag = find_matching_close_tag(file_2, start_index, file_2_start_tag[0])
+
+    # if there is no end tag in either file that can be found, stop searching and fail
+    if file_1_end_tag[1] == -1 or file_2_end_tag[1] == -1:
+        # returns true because the diff cannot continue.
+        print("Closing tag seek failed... aborting operation.\nFiles do not match.")
+        return True
+
+    # used for text-mismatch
+    file_1_compare_string = file_1[file_1_start_tag[1]: file_1_end_tag[2]]
+    file_1_compare_string = file_1_compare_string[file_1_compare_string.find('>') + 1:]
+    file_1_compare_string = file_1_compare_string[:file_1_compare_string.find('<')]
+
+    file_2_compare_string = file_2[file_2_start_tag[1]: file_2_end_tag[2]]
+    file_2_compare_string = file_2_compare_string[file_2_compare_string.find('>') + 1:]
+    file_2_compare_string = file_2_compare_string[:file_2_compare_string.find('<')]
+
+# still need to calculate number
+    if file_1_compare_string != file_2_compare_string:
+        print(["On the following lines...\nfile 1: #. " + file_1[file_1_start_tag[1]: file_1_end_tag[2]]
+                             + "\nfile 2: #." + file_2[file_2_start_tag[1]: file_2_end_tag[2]] + "\n\"" +
+                             file_1_compare_string+"\" != \"" + file_2_compare_string +
+                             "\". Simple text mismatch. Continuing.", True])
+
+    return error_return
+
+
+def find_previous_open_tag(file_string: str, start_search_index: int)->list:
+    string_copy = file_string[:start_search_index]
+
+    current_tag_start_index = string_copy.rfind("<")
+    current_tag_end_index = string_copy.rfind(">")
+
+    while True:
+        tag = file_string[current_tag_start_index: current_tag_end_index+1]
+
+        if "/" not in tag:
+            return [tag, current_tag_start_index, current_tag_end_index+1]
+        else:
+            string_copy = string_copy[:current_tag_start_index]
+            current_tag_start_index = string_copy.rfind("<")
+            current_tag_end_index = string_copy.rfind(">")
+
+
+def find_matching_close_tag(file_string: str, start_search_index: int, tag_to_match: str)->list:
+    string_copy = file_string[start_search_index:]
+    final_start_index = start_search_index
+    close_tags_remaining = 1
+
+    current_tag_start_index = string_copy.find("<")
+    final_start_index += current_tag_start_index
+
+    current_tag_end_index = string_copy.find(">")
+
+    while True:
+        if current_tag_end_index == -1:
+            return ["", -1, -1]
+
+        tag = string_copy[current_tag_start_index: current_tag_end_index+1]
+        final_start_index += len(tag)
+
+        if tag == tag_to_match:
+            close_tags_remaining += 1
+        elif tag.replace('/', '') == tag_to_match:
+            close_tags_remaining -= 1
+            if close_tags_remaining == 0:
+                final_start_index -= len(tag)
+                return [tag, final_start_index, final_start_index + (current_tag_end_index - current_tag_start_index) + 1]
+        else:
+            string_copy = string_copy[current_tag_end_index + 1:]
+            current_tag_start_index = string_copy.find("<")
+            current_tag_end_index = string_copy.find(">")
+
+
+def read_html_file(html_file_path: str)->str:
+    html_file_string = ""
+
+    with open(html_file_path) as file:
         for line in file:
-            html_file_return.append(line)
-    return html_file_return
+            html_file_string += line
+
+    return html_file_string
 
 
-def html_split(html_contents_1: str, html_contents_2: str)->str:
-    pass
+def strip_white_space(html_string: str, new_lines: bool = False)->str:
+    to_return = " ".join(html_string.split()).replace("> <", "><").replace("> ", ">").replace(" <", "<")
+    if new_lines:
+        to_return = to_return.replace(">$ ", ">")
+
+    return to_return
 
 
-def compare_html(html_string_1: str, htlm_string_2: str)->str:
-    pass
+def strip_new_lines(html_string: str)->str:
+    return strip_white_space(html_string.replace('\n', ''))
+
+
+def replace_new_lines(html_string: str)->str:
+    return strip_white_space(html_string.replace('\n', '$'), True)
 
 
 if __name__ == '__main__':
