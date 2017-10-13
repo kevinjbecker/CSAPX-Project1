@@ -38,32 +38,46 @@ def compare_files(file_1_stripped: str, file_1_line_preserved: str, file_2_strip
     file_2_stripped_copy = file_2_stripped
 
     index = 0
+
+    mismatches = False
+
     while len(file_1_stripped) > 0:
         index += 1
         if len(file_2_stripped) == 0:
-            print("Unexpected end of file 2... aborting operation.\nFiles do not match.")
-            break
+            print("Unexpected end of file 2... aborting operation.")
+            return 2
         if file_1_stripped[0] != file_2_stripped[0]:
-            continue_points = find_errors(file_1_stripped_copy, file_2_stripped_copy, file_1_line_preserved,
-                                          file_2_line_preserved, index)
-    return 0
+            mismatches = True
+            # find_errors will find the errors
+            continue_points = find_errors(file_1_stripped_copy, file_1_stripped, file_1_line_preserved,
+                                          file_2_stripped_copy, file_2_stripped, file_2_line_preserved, index)
+            if type(continue_points) == bool and not continue_points:
+                return 2
+
+    if len(file_2_stripped) > 0:
+        print("Unexpected end of file 1... aborting operation.")
+        return 2
+
+    return 1 if mismatches else 0
 
 
-def find_errors(file_1: str, file_2: str, file_1_lines: str, file_2_lines: str, start_index: int)->bool:
-
+def find_errors(file_1: str, file_1_shortened: str, file_1_lines: str, file_2: str, file_2_shortened: str,
+                file_2_lines: str, start_index: int):
     # gets the nearest start tags for both files
     file_1_start_tag = find_previous_open_tag(file_1, start_index)
     file_2_start_tag = find_previous_open_tag(file_2, start_index)
 
-    # gets the nearest end tags for both files
+    # gets the end tag that matches the start tag for both files
     file_1_end_tag = find_matching_close_tag(file_1, start_index, file_1_start_tag[0])
     file_2_end_tag = find_matching_close_tag(file_2, start_index, file_2_start_tag[0])
 
     # if there is no end tag in either file that can be found, stop searching and fail
     if file_1_end_tag[1] == -1 or file_2_end_tag[1] == -1:
         # returns true because the diff cannot continue.
-        print("Closing tag seek failed... aborting operation.\nFiles do not match.")
-        return True
+        print("Closing tag seek failed... aborting operation.")
+        return False
+
+
 
     # used for text-mismatch
     file_1_compare_string = file_1[file_1_start_tag[1]: file_1_end_tag[2]]
