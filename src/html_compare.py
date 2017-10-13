@@ -2,6 +2,7 @@ from sys import argv
 
 # to do - fix it so that tag start mismatches work
 
+
 def main():
     # to add: prompt for file names if argv no have them
     file_path_1 = argv[1]
@@ -11,7 +12,7 @@ def main():
     # if the files are the same path, it is impossible for them to be different.
     # saving compute time by catching this case.
     if file_path_1 == file_path_2:
-        print("Files point to same directory. Files match.")
+        print("Files point to same path.\nFiles match.")
     else:
         file_1_html = read_html_file(file_path_1)
         file_2_html = read_html_file(file_path_2)
@@ -35,8 +36,8 @@ def compare_files(file_1_stripped: str, file_1_line_preserved: str, file_2_strip
     if file_1_stripped == file_2_stripped:
         return 0
 
-    file_1_stripped_copy = file_1_stripped
-    file_2_stripped_copy = file_2_stripped
+    file_1_stripped_full = file_1_stripped
+    file_2_stripped_full = file_2_stripped
 
     index_file_1 = 0
     index_file_2 = 0
@@ -51,8 +52,8 @@ def compare_files(file_1_stripped: str, file_1_line_preserved: str, file_2_strip
         elif file_1_stripped[0] != file_2_stripped[0]:
             mismatches = True
             # find_and_report_errors will find the errors
-            continue_points = find_and_report_errors(file_1_stripped_copy, file_1_stripped, file_1_line_preserved, index_file_1,
-                                                     file_2_stripped_copy, file_2_stripped, file_2_line_preserved, index_file_2)
+            continue_points = find_and_report_errors(file_1_stripped_full, file_1_stripped, file_1_line_preserved, index_file_1,
+                                                     file_2_stripped_full, file_2_stripped, file_2_line_preserved, index_file_2)
             if type(continue_points) == bool and not continue_points:
                 return 2
             else:
@@ -62,6 +63,7 @@ def compare_files(file_1_stripped: str, file_1_line_preserved: str, file_2_strip
                 index_file_2 += continue_points[1]
         file_1_stripped = file_1_stripped[1:]
         file_2_stripped = file_2_stripped[1:]
+
     if len(file_2_stripped) > 0:
         print("Unexpected end of file 1... aborting operation.")
         return 2
@@ -98,31 +100,15 @@ def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines
 
     # gets the string that contained an error (including parent tag)
     file_1_string_to_compare = file_1_full[file_1_start_tag[1]: file_1_end_tag[2]]
-
     # find the compare string's location in file_1's shortened string
-    for index in range(0, len(file_1_string_to_compare)):
-        if file_1_string_to_compare[index:] not in file_1_shortened:
-            index_return.append(file_1_shortened.find(file_1_string_to_compare[index-1:]) +
-                                len(file_1_string_to_compare[index-1:]))
-            # no need to waste time, we've gotten our answer
-            break
-
+    index_return.append(file_1_shortened.find(file_1_end_tag[0]) + len(file_1_end_tag[0]))
     # strips the outermost tags of the file 1 string to compare (we don't need it, we already know they match)
     file_1_string_to_compare = file_1_string_to_compare[file_1_string_to_compare.find('>') + 1: file_1_string_to_compare.rfind('<')]
 
     # same as above but for the second file
     file_2_string_to_compare = file_2_full[file_2_start_tag[1]: file_2_end_tag[2]]
-
     # perform the same as above for file_2
-    for index in range(0, len(file_2_string_to_compare)):
-        print(file_2_string_to_compare[index:])
-        if file_2_string_to_compare[index:] not in file_2_shortened:
-            index_return.append(file_2_shortened.find(file_2_string_to_compare[index-1:]) +
-                                len(file_2_string_to_compare[index-1:]))
-
-            # no need to waste time, we've gotten our answer
-            break
-
+    index_return.append(file_2_shortened.find(file_2_end_tag[0]) + len(file_2_end_tag[0]))
     # strip the outermost tags of the file 2 string to compare (we don't need it, we already know they match)
     file_2_string_to_compare = file_2_string_to_compare[file_2_string_to_compare.find('>') + 1:file_2_string_to_compare.rfind('<')]
 
@@ -178,11 +164,16 @@ def in_tag(shortened_string: str)->bool:
 def get_tag_mismatch(file_1_full: str, file_1_shortened: str, file_1_error_start_index: int, file_2_full: str,
                      file_2_shortened: str, file_2_error_start_index: int)->list:
     tag_mismatch = []
+
     file_1_shortened_opposite = file_1_full[:file_1_error_start_index + file_1_shortened.find('>')]
     file_2_shortened_opposite = file_2_full[:file_2_error_start_index + file_2_shortened.find('>')]
 
     file_1_tag = file_1_shortened_opposite[file_1_shortened_opposite.rfind('<'):]
     file_2_tag = file_2_shortened_opposite[file_2_shortened_opposite.rfind('<'):]
+
+    # gets the parent tag so that we can continue if there is a mismatch
+    file_1_parent_tag = find_parent_tag(file_1_full, file_1_error_start_index)
+    file_2_parent_tag = find_parent_tag(file_2_full, file_2_error_start_index)
 
     tag_mismatch.append(len(file_1_shortened_opposite))
     tag_mismatch.append(len(file_2_shortened_opposite))
@@ -193,11 +184,42 @@ def get_tag_mismatch(file_1_full: str, file_1_shortened: str, file_1_error_start
     # returns a list of where to continue off
 
 
+def find_parent_tag(file_string: str, start_search_index: int)->list:
+    # a parent tag is the left of two open tags put together
+    index_modifier = 0
+    file_string_up_to_start_index = file_string[:start_search_index]
+
+    if file_string_up_to_start_index.rfind('<') > file_string_up_to_start_index.rfind('>'):
+        index_modifier += len(file_string_up_to_start_index) - file_string_up_to_start_index.rfind('>')
+        file_string_up_to_start_index = file_string_up_to_start_index[:file_string_up_to_start_index.rfind('>')+1]
+
+    second_tag_start_index = file_string_up_to_start_index.rfind('<')
+    second_tag_end_index = file_string_up_to_start_index.rfind('>')
+    second_tag = file_string_up_to_start_index[second_tag_start_index:second_tag_end_index+1]
+
+    while True:
+        first_tag_start_index = file_string_up_to_start_index[:second_tag_start_index].rfind('<')
+        first_tag_end_index = file_string_up_to_start_index[:second_tag_end_index].rfind('>')
+        first_tag = file_string_up_to_start_index[first_tag_start_index:first_tag_end_index+1]
+
+        if '/' not in first_tag and '/' not in second_tag and second_tag_start_index - first_tag_end_index == 1:
+            continue_searching_from_index = find_matching_close_tag(file_string, first_tag_start_index, first_tag)
+            return [first_tag, continue_searching_from_index[1]]
+
+        second_tag_start_index = first_tag_start_index
+        second_tag_end_index = first_tag_end_index
+        second_tag = first_tag
+
+
 def build_string_until_tag(full_string):
     built_string = ""
+
+    # though it may seem like this is excess, it is needed since two items are being compared simultaneously
+    # this is the fastest way to do it
     while len(full_string) > 0 and full_string[0] != "<":
         built_string += full_string[0]
         full_string = full_string[1:]
+
     return built_string
 
 
