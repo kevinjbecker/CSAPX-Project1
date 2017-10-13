@@ -1,12 +1,18 @@
 from sys import argv
 
-# to do - fix it so that tag start mismatches work
-
 
 def main():
     # to add: prompt for file names if argv no have them
-    file_path_1 = argv[1]
-    file_path_2 = argv[2]
+    if len(argv) < 3:
+        if len(argv) == 2:
+            print("Only one file path specified, assuming that as file 1.")
+            file_path_1 = argv[1]
+        else:
+            file_path_1 = input("Enter path for file 1: ")
+        file_path_2 = input("Enter path for file 2: ")
+    else:
+        file_path_1 = argv[1]
+        file_path_2 = argv[2]
     exit_codes = ["Files match.", "Files partially match with above differences.", "Files do not match."]
 
     # if the files are the same path, it is impossible for them to be different.
@@ -56,6 +62,8 @@ def compare_files(file_1_stripped: str, file_1_line_preserved: str, file_2_strip
                                                      file_2_stripped_full, file_2_stripped, file_2_line_preserved, index_file_2)
             if type(continue_points) == bool and not continue_points:
                 return 2
+            elif continue_points[0] == -1:
+                return 2
             else:
                 file_1_stripped = file_1_stripped[continue_points[0]:]
                 index_file_1 += continue_points[0]
@@ -80,9 +88,16 @@ def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines
         tag_mismatch = get_tag_mismatch(file_1_full, file_1_shortened, file_1_error_start_index, file_2_full,
                                         file_2_shortened, file_2_error_start_index)
         # need to get start tag
-        print("On the following lines...\nfile 1: #. " + tag_mismatch[2] + "\nfile 2: #. " + tag_mismatch[3] + "\n" +
-              tag_mismatch[2] + " != " + tag_mismatch[3] + ". Tag mismatch. Attempting to continue to end of " +
-              str(tag_mismatch[0]) + ". Succeeded.\n")
+
+        if tag_mismatch[1] == -1:
+            print("On the following lines...\nfile 1: #. " + tag_mismatch[4] + "\nfile 2: #. " + tag_mismatch[5] + "\n" +
+                tag_mismatch[4] + " != " + tag_mismatch[5] + ". Tag mismatch at outermost level. Aborting operation.\n")
+            return [-1, -1]
+
+        print("On the following lines...\nfile 1: #. " + tag_mismatch[4] + "\nfile 2: #. " + tag_mismatch[5] + "\n" +
+              tag_mismatch[4] + " != " + tag_mismatch[5] + ". Tag mismatch. Attempting to continue to end of " +
+              tag_mismatch[0] + ". Succeeded.\n")
+        return [tag_mismatch[1], tag_mismatch[3]]
 
     # gets the nearest start tags for both files
     file_1_start_tag = find_previous_open_tag(file_1_full, file_1_error_start_index)
@@ -163,8 +178,6 @@ def in_tag(shortened_string: str)->bool:
 
 def get_tag_mismatch(file_1_full: str, file_1_shortened: str, file_1_error_start_index: int, file_2_full: str,
                      file_2_shortened: str, file_2_error_start_index: int)->list:
-    tag_mismatch = []
-
     file_1_shortened_opposite = file_1_full[:file_1_error_start_index + file_1_shortened.find('>')]
     file_2_shortened_opposite = file_2_full[:file_2_error_start_index + file_2_shortened.find('>')]
 
@@ -174,20 +187,16 @@ def get_tag_mismatch(file_1_full: str, file_1_shortened: str, file_1_error_start
     # gets the parent tag so that we can continue if there is a mismatch
     file_1_parent_tag = find_parent_tag(file_1_full, file_1_error_start_index)
     file_2_parent_tag = find_parent_tag(file_2_full, file_2_error_start_index)
-
-    tag_mismatch.append(len(file_1_shortened_opposite))
-    tag_mismatch.append(len(file_2_shortened_opposite))
-    tag_mismatch.append(file_1_tag)
-    tag_mismatch.append(file_2_tag)
-
-    return tag_mismatch
-    # returns a list of where to continue off
+    return [file_1_parent_tag[0], file_1_parent_tag[1], file_2_parent_tag[0], file_2_parent_tag[1], file_1_tag, file_2_tag]
 
 
 def find_parent_tag(file_string: str, start_search_index: int)->list:
     # a parent tag is the left of two open tags put together
     index_modifier = 0
     file_string_up_to_start_index = file_string[:start_search_index]
+
+    if '>' not in file_string_up_to_start_index:
+        return [file_string[file_string.find('<'): file_string.find('>')+1], -1]
 
     if file_string_up_to_start_index.rfind('<') > file_string_up_to_start_index.rfind('>'):
         index_modifier += len(file_string_up_to_start_index) - file_string_up_to_start_index.rfind('>')
@@ -203,6 +212,8 @@ def find_parent_tag(file_string: str, start_search_index: int)->list:
         first_tag = file_string_up_to_start_index[first_tag_start_index:first_tag_end_index+1]
 
         if '/' not in first_tag and '/' not in second_tag and second_tag_start_index - first_tag_end_index == 1:
+            if first_tag_start_index == 0:
+                return [first_tag, len(file_string)]
             continue_searching_from_index = find_matching_close_tag(file_string, first_tag_start_index, first_tag)
             return [first_tag, continue_searching_from_index[1]]
 
@@ -297,4 +308,7 @@ def replace_new_lines(html_string: str)->str:
 
 
 if __name__ == '__main__':
-    main()
+    if len(argv) > 3:
+        print("Illegal number of arguments used.\nUsage: $python3 html_compare.py [file1, file2]")
+    else:
+        main()
