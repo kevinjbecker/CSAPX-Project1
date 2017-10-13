@@ -74,6 +74,14 @@ def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines
     # the eventual return if find_and_report completes; lets the function that calls it know what to remove.
     index_return = []
 
+    if in_tag(file_1_shortened) or in_tag(file_2_shortened):
+        tag_mismatch = get_tag_mismatch(file_1_full, file_1_shortened, file_1_error_start_index, file_2_full,
+                                        file_2_shortened, file_2_error_start_index)
+        # need to get start tag
+        print("On the following lines...\nfile 1: #. " + tag_mismatch[2] + "\nfile 2: #. " + tag_mismatch[3] + "\n" +
+              tag_mismatch[2] + " != " + tag_mismatch[3] + ". Tag mismatch. Attempting to continue to end of " +
+              str(tag_mismatch[0]) + ". Succeeded.\n")
+
     # gets the nearest start tags for both files
     file_1_start_tag = find_previous_open_tag(file_1_full, file_1_error_start_index)
     file_2_start_tag = find_previous_open_tag(file_2_full, file_2_error_start_index)
@@ -93,9 +101,9 @@ def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines
 
     # find the compare string's location in file_1's shortened string
     for index in range(0, len(file_1_string_to_compare)):
-        if file_1_string_to_compare[index:] in file_1_shortened:
-            index_return.append(file_1_shortened.find(file_1_string_to_compare[index:]) +
-                                len(file_1_string_to_compare[index:]))
+        if file_1_string_to_compare[index:] not in file_1_shortened:
+            index_return.append(file_1_shortened.find(file_1_string_to_compare[index-1:]) +
+                                len(file_1_string_to_compare[index-1:]))
             # no need to waste time, we've gotten our answer
             break
 
@@ -107,9 +115,11 @@ def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines
 
     # perform the same as above for file_2
     for index in range(0, len(file_2_string_to_compare)):
-        if file_2_string_to_compare[index:] in file_2_shortened:
-            index_return.append(file_2_shortened.find(file_2_string_to_compare[index:]) +
-                                len(file_2_string_to_compare[index:]))
+        print(file_2_string_to_compare[index:])
+        if file_2_string_to_compare[index:] not in file_2_shortened:
+            index_return.append(file_2_shortened.find(file_2_string_to_compare[index-1:]) +
+                                len(file_2_string_to_compare[index-1:]))
+
             # no need to waste time, we've gotten our answer
             break
 
@@ -151,12 +161,36 @@ def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines
                 # else its a tag, compare their innards to make sure they match, otherwise break the compare and
                 # alert that there was a tag mismatch
                 print("On the following lines...\nfile 1: #. " + file_1_full[file_1_start_tag[1]: file_1_end_tag[2]]
-                      + "\nfile 2: #. " + file_2_full[file_2_start_tag[1]: file_2_end_tag[2]] + "\n\"" +
-                      file_1_string_currently_comparing + "\" != \"" + file_2_string_currently_comparing +
-                      "\". Tag mismatch. Attempting to continue to end of " + file_1_start_tag[0] + ". Succeeded.\n")
+                      + "\nfile 2: #. " + file_2_full[file_2_start_tag[1]: file_2_end_tag[2]] + "\n" +
+                      file_1_string_currently_comparing + " != " + file_2_string_currently_comparing +
+                      ". Tag mismatch. Attempting to continue to end of " + file_1_start_tag[0] + ". Succeeded.\n")
                 return index_return
 
     return index_return
+
+
+def in_tag(shortened_string: str)->bool:
+    if shortened_string.find(">") < shortened_string.find('<') or ('<' not in shortened_string and '>' in shortened_string):
+        return True
+    return False
+
+
+def get_tag_mismatch(file_1_full: str, file_1_shortened: str, file_1_error_start_index: int, file_2_full: str,
+                     file_2_shortened: str, file_2_error_start_index: int)->list:
+    tag_mismatch = []
+    file_1_shortened_opposite = file_1_full[:file_1_error_start_index + file_1_shortened.find('>')]
+    file_2_shortened_opposite = file_2_full[:file_2_error_start_index + file_2_shortened.find('>')]
+
+    file_1_tag = file_1_shortened_opposite[file_1_shortened_opposite.rfind('<'):]
+    file_2_tag = file_2_shortened_opposite[file_2_shortened_opposite.rfind('<'):]
+
+    tag_mismatch.append(len(file_1_shortened_opposite))
+    tag_mismatch.append(len(file_2_shortened_opposite))
+    tag_mismatch.append(file_1_tag)
+    tag_mismatch.append(file_2_tag)
+
+    return tag_mismatch
+    # returns a list of where to continue off
 
 
 def build_string_until_tag(full_string):
@@ -170,16 +204,15 @@ def build_string_until_tag(full_string):
 def find_previous_open_tag(file_string: str, start_search_index: int)->list:
     string_copy = file_string[:start_search_index]
     if string_copy[-1] == '<':
-        start_search_index -= 1
+        string_copy = string_copy[:-1]
     elif string_copy[-1] == '>':
-        start_search_index += 1
+        string_copy += file_string[:start_search_index+1]
 
     current_tag_start_index = string_copy.rfind("<")
     current_tag_end_index = string_copy.rfind(">")
 
     while True:
         tag = file_string[current_tag_start_index: current_tag_end_index+1]
-
         if "/" not in tag:
             return [tag, current_tag_start_index, current_tag_end_index+1]
         else:
@@ -189,8 +222,8 @@ def find_previous_open_tag(file_string: str, start_search_index: int)->list:
 
 
 def find_matching_close_tag(file_string: str, start_search_index: int, tag_to_match: str)->list:
-    string_copy = file_string[start_search_index:]
-    final_start_index = start_search_index
+    string_copy = file_string[start_search_index-1:]
+    final_start_index = start_search_index-1
     close_tags_remaining = 1
 
     current_tag_start_index = string_copy.find("<")
