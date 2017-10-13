@@ -38,7 +38,6 @@ def compare_files(file_1_stripped: str, file_1_line_preserved: str, file_2_strip
     file_2_stripped_copy = file_2_stripped
 
     index = 0
-
     mismatches = False
 
     while len(file_1_stripped) > 0:
@@ -46,13 +45,15 @@ def compare_files(file_1_stripped: str, file_1_line_preserved: str, file_2_strip
         if len(file_2_stripped) == 0:
             print("Unexpected end of file 2... aborting operation.")
             return 2
-        if file_1_stripped[0] != file_2_stripped[0]:
+        elif file_1_stripped[0] != file_2_stripped[0]:
             mismatches = True
             # find_errors will find the errors
             continue_points = find_errors(file_1_stripped_copy, file_1_stripped, file_1_line_preserved,
                                           file_2_stripped_copy, file_2_stripped, file_2_line_preserved, index)
             if type(continue_points) == bool and not continue_points:
                 return 2
+        file_1_stripped = file_1_stripped[1:]
+        file_2_stripped = file_2_stripped[1:]
 
     if len(file_2_stripped) > 0:
         print("Unexpected end of file 1... aborting operation.")
@@ -62,14 +63,15 @@ def compare_files(file_1_stripped: str, file_1_line_preserved: str, file_2_strip
 
 
 def find_errors(file_1: str, file_1_shortened: str, file_1_lines: str, file_2: str, file_2_shortened: str,
-                file_2_lines: str, start_index: int):
+                file_2_lines: str, error_start_index: int):
+    index_return = []
     # gets the nearest start tags for both files
-    file_1_start_tag = find_previous_open_tag(file_1, start_index)
-    file_2_start_tag = find_previous_open_tag(file_2, start_index)
+    file_1_start_tag = find_previous_open_tag(file_1, error_start_index)
+    file_2_start_tag = find_previous_open_tag(file_2, error_start_index)
 
     # gets the end tag that matches the start tag for both files
-    file_1_end_tag = find_matching_close_tag(file_1, start_index, file_1_start_tag[0])
-    file_2_end_tag = find_matching_close_tag(file_2, start_index, file_2_start_tag[0])
+    file_1_end_tag = find_matching_close_tag(file_1, error_start_index, file_1_start_tag[0])
+    file_2_end_tag = find_matching_close_tag(file_2, error_start_index, file_2_start_tag[0])
 
     # if there is no end tag in either file that can be found, stop searching and fail
     if file_1_end_tag[1] == -1 or file_2_end_tag[1] == -1:
@@ -77,23 +79,68 @@ def find_errors(file_1: str, file_1_shortened: str, file_1_lines: str, file_2: s
         print("Closing tag seek failed... aborting operation.")
         return False
 
-
-
-    # used for text-mismatch
+    # used for text-mismatch (strips the outer tag)
     file_1_compare_string = file_1[file_1_start_tag[1]: file_1_end_tag[2]]
-    file_1_compare_string = file_1_compare_string[file_1_compare_string.find('>') + 1:]
-    file_1_compare_string = file_1_compare_string[:file_1_compare_string.find('<')]
+    # find the compare string's location in file_1's shortened string
+    for index in range(len(file_1_compare_string), 1, -1):
+        if file_1_compare_string[index:] in file_1_shortened:
+            index_return.append(file_1_shortened.find(file_1_compare_string[index:]) +
+                                len(file_1_compare_string[index:]))
+            # no need to waste time, we've gotten our answer
+            break
+    # strips the outermost tags
+    file_1_compare_string = file_1_compare_string[file_1_compare_string.find('>') + 1:file_1_compare_string.rfind('<')]
 
+    # same as above but for the second file
     file_2_compare_string = file_2[file_2_start_tag[1]: file_2_end_tag[2]]
-    file_2_compare_string = file_2_compare_string[file_2_compare_string.find('>') + 1:]
-    file_2_compare_string = file_2_compare_string[:file_2_compare_string.find('<')]
+    # perform the same as above for file_2
+    for index in range(len(file_2_compare_string), 1, -1):
+        if file_2_compare_string[index:] in file_2_shortened:
+            index_return.append(file_2_shortened.find(file_2_compare_string[index:]) +
+                                len(file_2_compare_string[index:]))
+            # no need to waste time, we've gotten our answer
+            break
+    # strip the outermost tags
+    file_2_compare_string = file_2_compare_string[file_2_compare_string.find('>') + 1:file_2_compare_string.rfind('<')]
 
-# still need to calculate number
-    if file_1_compare_string != file_2_compare_string:
-        print("On the following lines...\nfile 1: #. " + file_1[file_1_start_tag[1]: file_1_end_tag[2]]
-              + "\nfile 2: #. " + file_2[file_2_start_tag[1]: file_2_end_tag[2]] + "\n\"" +
-              file_1_compare_string+"\" != \"" + file_2_compare_string +
-              "\". Simple text mismatch. Continuing.")
+    file_1_current_compare = ""
+    file_2_current_compare = ""
+    continue_scanning = True
+
+    while continue_scanning:
+        # builds the string until the next tag is found (for text mismatch)
+        while len(file_1_compare_string) > 0 and file_1_compare_string[0] != "<":
+            file_1_current_compare += file_1_compare_string[0]
+            file_1_compare_string = file_1_compare_string[1:]
+        # builds the string until the next tag is found (for text mismatch)
+        while len(file_2_compare_string) > 0 and file_2_compare_string[0] != "<":
+            file_2_current_compare += file_2_compare_string[0]
+            file_2_compare_string = file_2_compare_string[1:]
+
+        print(file_2_compare_string)
+        print(file_1_compare_string)
+
+        if file_1_current_compare != file_2_current_compare:
+            if "<" not in file_1_current_compare:
+                # have to get the lines here
+                print("On the following lines...\nfile 1: #. " + file_1[file_1_start_tag[1]: file_1_end_tag[2]]
+                      + "\nfile 2: #. " + file_2[file_2_start_tag[1]: file_2_end_tag[2]] + "\n\"" +
+                      file_1_current_compare + "\" != \"" + file_2_current_compare +
+                      "\". Simple text mismatch. Continuing.\n")
+                file_1_current_compare = file_1_compare_string[0]
+                file_2_current_compare = file_1_compare_string[0]
+                file_1_compare_string = file_1_compare_string[1:]
+                file_2_compare_string = file_2_compare_string[1:]
+            else:
+                # else its a tag, compare their innards to make sure they match, otherwise break the compare and
+                # alert that there was a tag mismatch
+                print("On the following lines...\nfile 1: #. " + file_1[file_1_start_tag[1]: file_1_end_tag[2]]
+                      + "\nfile 2: #. " + file_2[file_2_start_tag[1]: file_2_end_tag[2]] + "\n\"" +
+                      file_1_compare_string + "\" != \"" + file_2_compare_string +
+                      "\". Tag mismatch. Attempting to continue to end of " + file_1_start_tag[0] + ". Succeeded.\n")
+                return index_return
+
+    return index_return
 
 
 def find_previous_open_tag(file_string: str, start_search_index: int)->list:
