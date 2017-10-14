@@ -60,15 +60,14 @@ def compare_files(file_1_stripped: str, file_1_line_preserved: str, file_2_strip
             # find_and_report_errors will find the errors
             continue_points = find_and_report_errors(file_1_stripped_full, file_1_stripped, file_1_line_preserved, index_file_1,
                                                      file_2_stripped_full, file_2_stripped, file_2_line_preserved, index_file_2)
-            if type(continue_points) == bool and not continue_points:
-                return 2
-            elif continue_points[0] == -1:
+            if type(continue_points) == bool and not continue_points or continue_points[0] == -1:
                 return 2
             else:
                 file_1_stripped = file_1_stripped[continue_points[0]:]
                 index_file_1 += continue_points[0]
                 file_2_stripped = file_2_stripped[continue_points[1]:]
                 index_file_2 += continue_points[1]
+
         file_1_stripped = file_1_stripped[1:]
         file_2_stripped = file_2_stripped[1:]
 
@@ -81,23 +80,27 @@ def compare_files(file_1_stripped: str, file_1_line_preserved: str, file_2_strip
 
 def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines: str, file_1_error_start_index: int, file_2_full: str,
                            file_2_shortened: str, file_2_lines: str, file_2_error_start_index: int):
+
     # the eventual return if find_and_report completes; lets the function that calls it know what to remove.
     index_return = []
 
     if in_tag(file_1_shortened) or in_tag(file_2_shortened):
+        # if we're in a tag, we need to find the tag-mismatch, this does that
         tag_mismatch = get_tag_mismatch(file_1_full, file_1_shortened, file_1_error_start_index, file_2_full,
                                         file_2_shortened, file_2_error_start_index)
-        # need to get start tag
 
+        # if the tag mismatch can't be resolved (i.e. tag mismatch at outermost level)
         if tag_mismatch[1] == -1:
-            print("On the following lines...\nfile 1: #. " + tag_mismatch[4] + "\nfile 2: #. " + tag_mismatch[5] + "\n" +
-                tag_mismatch[4] + " != " + tag_mismatch[5] + ". Tag mismatch at outermost level. Aborting operation.\n")
+            print("On the following lines...\nfile 1: #. " + tag_mismatch[4] + "\nfile 2: #. " + tag_mismatch[5] + "\n"
+                  + tag_mismatch[4] + " != " + tag_mismatch[5] +
+                  ". Tag mismatch at outermost level. Aborting operation.\n")
             return [-1, -1]
 
+        # otherwise we're able to resolve and can tell the user this information
         print("On the following lines...\nfile 1: #. " + tag_mismatch[4] + "\nfile 2: #. " + tag_mismatch[5] + "\n" +
               tag_mismatch[4] + " != " + tag_mismatch[5] + ". Tag mismatch. Attempting to continue to end of " +
               tag_mismatch[0] + ". Attempt succeeded.\n")
-        return [tag_mismatch[1], tag_mismatch[3]]
+        return [tag_mismatch[1] - file_1_error_start_index, tag_mismatch[3] - file_2_error_start_index]
 
     # gets the nearest start tags for both files
     file_1_start_tag = find_previous_open_tag(file_1_full, file_1_error_start_index)
@@ -133,15 +136,18 @@ def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines
     while True:
         if len(file_1_string_to_compare) == 0 or len(file_2_string_to_compare) == 0:
             break
-        # need to make a function out of this
+
         # builds the string until the next tag is found (for text mismatch)
         file_1_string_currently_comparing += build_string_until_tag(file_1_string_to_compare)
         file_1_string_to_compare = file_1_string_to_compare[len(file_1_string_currently_comparing):]
 
+        # builds file 2 string to compare
         file_2_string_currently_comparing += build_string_until_tag(file_2_string_to_compare)
         file_2_string_to_compare = file_2_string_to_compare[len(file_2_string_currently_comparing):]
 
+        # if they don't match, report the error
         if file_1_string_currently_comparing != file_2_string_currently_comparing:
+            # if we're not in a tag, we can tell user it is just a text-mismatch
             if "<" not in file_1_string_currently_comparing:
                 # have to get the lines here
                 print("On the following lines...\nfile 1: #. " + file_1_full[file_1_start_tag[1]: file_1_end_tag[2]]
@@ -157,7 +163,7 @@ def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines
 
                 file_1_string_to_compare = file_1_string_to_compare[1:]
                 file_2_string_to_compare = file_2_string_to_compare[1:]
-
+            # otherwise it's a tag error within the current tag and we can tell the user this information
             else:
                 # else its a tag, compare their innards to make sure they match, otherwise break the compare and
                 # alert that there was a tag mismatch
@@ -178,7 +184,6 @@ def in_tag(shortened_string: str)->bool:
 
 def get_tag_mismatch(file_1_full: str, file_1_shortened: str, file_1_error_start_index: int, file_2_full: str,
                      file_2_shortened: str, file_2_error_start_index: int)->list:
-
     file_1_shortened_opposite = file_1_full[:file_1_error_start_index + file_1_shortened.find('>')]
     file_2_shortened_opposite = file_2_full[:file_2_error_start_index + file_2_shortened.find('>')]
 
@@ -188,8 +193,6 @@ def get_tag_mismatch(file_1_full: str, file_1_shortened: str, file_1_error_start
     # gets the parent tag so that we can continue if there is a mismatch
     file_1_parent_tag = find_parent_tag(file_1_full, file_1_shortened_opposite)
     file_2_parent_tag = find_parent_tag(file_2_full, file_2_shortened_opposite)
-
-    print(file_1_parent_tag)
 
     return [file_1_parent_tag[0], file_1_parent_tag[1], file_2_parent_tag[0], file_2_parent_tag[1], file_1_tag, file_2_tag]
 
@@ -217,8 +220,10 @@ def find_parent_tag(file_string: str, file_string_up_to_start_index: str)->list:
         if '/' not in first_tag and '/' not in second_tag and second_tag_start_index - first_tag_end_index == 1:
             if first_tag_start_index == 0:
                 return [first_tag, len(file_string)]
-            continue_searching_from_index = find_matching_close_tag(file_string, first_tag_start_index, first_tag)
-            return [first_tag, continue_searching_from_index[1]]
+
+            continue_searching_from_index = find_matching_close_tag(file_string, first_tag_end_index+1, first_tag)
+
+            return [first_tag, continue_searching_from_index[2]]
 
         second_tag_start_index = first_tag_start_index
         second_tag_end_index = first_tag_end_index
@@ -257,17 +262,19 @@ def find_previous_open_tag(file_string: str, start_search_index: int)->list:
             current_tag_end_index = string_copy.rfind(">")
 
 
-def find_matching_close_tag(file_string: str, start_search_index: int, tag_to_match: str, begins_at_parent_tag: bool = True)->list:
+def find_matching_close_tag(file_string: str, start_search_index: int, tag_to_match: str)->list:
     string_copy = file_string[start_search_index-1:]
     final_start_index = start_search_index-1
-    close_tags_remaining = 1 if begins_at_parent_tag else 0
+    close_tags_remaining = 1
+
+    if string_copy.find("<") > string_copy.find(">"):
+        final_start_index += string_copy.find("<")
+        string_copy = string_copy[string_copy.find("<"):]
 
     current_tag_start_index = string_copy.find("<")
     final_start_index += current_tag_start_index
 
     current_tag_end_index = string_copy.find(">")
-
-    original_offset = 1
 
     while True:
         if current_tag_end_index == -1:
@@ -277,17 +284,16 @@ def find_matching_close_tag(file_string: str, start_search_index: int, tag_to_ma
         final_start_index += len(tag)
 
         if tag == tag_to_match:
-            close_tags_remaining += 1 if original_offset == 0 else 0
-            if original_offset == 1:
-                original_offset = 0
-        elif '/' in tag and tag.replace('/', '') == tag_to_match:
+            close_tags_remaining += 1
+        elif tag.replace('/', '') == tag_to_match:
             close_tags_remaining -= 1
             if close_tags_remaining == 0:
                 final_start_index -= len(tag)
-                return [tag, final_start_index, final_start_index + (current_tag_end_index - current_tag_start_index) + 1]
+                return [tag, final_start_index, final_start_index + len(tag)]
         string_copy = string_copy[current_tag_end_index + 1:]
         current_tag_start_index = string_copy.find("<")
         current_tag_end_index = string_copy.find(">")
+        final_start_index += current_tag_start_index
 
 
 def read_html_file(html_file_path: str)->str:
