@@ -53,7 +53,7 @@ def compare_files(file_1_stripped: str, file_1_line_preserved: str, file_2_strip
         index_file_1 += 1
         index_file_2 += 1
         if len(file_2_stripped) == 0:
-            print("Unexpected end of file 2... aborting operation.")
+            print("Unexpected end of file 2. Aborting operation.")
             return 2
         elif file_1_stripped[0] != file_2_stripped[0]:
             mismatches = True
@@ -78,11 +78,14 @@ def compare_files(file_1_stripped: str, file_1_line_preserved: str, file_2_strip
     return 1 if mismatches else 0
 
 
-def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines: str, file_1_error_start_index: int, file_2_full: str,
-                           file_2_shortened: str, file_2_lines: str, file_2_error_start_index: int):
+def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines: str, file_1_error_start_index: int,
+                           file_2_full: str, file_2_shortened: str, file_2_lines: str, file_2_error_start_index: int):
 
     # the eventual return if find_and_report completes; lets the function that calls it know what to remove.
     index_return = []
+
+    file_1_line_number = str(get_line_number(file_1_lines, file_1_error_start_index))
+    file_2_line_number = str(get_line_number(file_2_lines, file_2_error_start_index))
 
     if in_tag(file_1_shortened) or in_tag(file_2_shortened):
         # if we're in a tag, we need to find the tag-mismatch, this does that
@@ -91,15 +94,15 @@ def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines
 
         # if the tag mismatch can't be resolved (i.e. tag mismatch at outermost level)
         if tag_mismatch[1] == -1:
-            print("On the following lines...\nfile 1: #. " + tag_mismatch[4] + "\nfile 2: #. " + tag_mismatch[5] + "\n"
-                  + tag_mismatch[4] + " != " + tag_mismatch[5] +
+            print("On the following lines...\nfile 1: " + file_1_line_number + ". " + tag_mismatch[4] + "\nfile 2: " +
+                  file_2_line_number + ". " + tag_mismatch[5] + "\n" + tag_mismatch[4] + " != " + tag_mismatch[5] +
                   ". Tag mismatch at outermost level. Aborting operation.\n")
             return [-1, -1]
 
         # otherwise we're able to resolve and can tell the user this information
-        print("On the following lines...\nfile 1: #. " + tag_mismatch[4] + "\nfile 2: #. " + tag_mismatch[5] + "\n" +
-              tag_mismatch[4] + " != " + tag_mismatch[5] + ". Tag mismatch. Attempting to continue to end of " +
-              tag_mismatch[0] + ". Attempt succeeded.\n")
+        print("On the following lines...\nfile 1: " + file_1_line_number + ". " + tag_mismatch[4] + "\nfile 2: " +
+              file_2_line_number + ". " + tag_mismatch[5] + "\n" + tag_mismatch[4] + " != " + tag_mismatch[5] +
+              ". Tag mismatch. Attempting to continue to end of " + tag_mismatch[0] + ". Attempt succeeded.\n")
         return [tag_mismatch[1] - file_1_error_start_index, tag_mismatch[3] - file_2_error_start_index]
 
     # gets the nearest start tags for both files
@@ -150,10 +153,10 @@ def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines
             # if we're not in a tag, we can tell user it is just a text-mismatch
             if "<" not in file_1_string_currently_comparing:
                 # have to get the lines here
-                print("On the following lines...\nfile 1: #. " + file_1_full[file_1_start_tag[1]: file_1_end_tag[2]]
-                      + "\nfile 2: #. " + file_2_full[file_2_start_tag[1]: file_2_end_tag[2]] + "\n\"" +
-                      file_1_string_currently_comparing + "\" != \"" + file_2_string_currently_comparing +
-                      "\". Simple text mismatch. Continuing.\n")
+                print("On the following lines...\nfile 1: " + file_1_line_number + ". " +
+                      file_1_full[file_1_start_tag[1]: file_1_end_tag[2]] + "\nfile 2: " + file_2_line_number + ". " +
+                      file_2_full[file_2_start_tag[1]: file_2_end_tag[2]] + "\n\"" + file_1_string_currently_comparing +
+                      "\" != \"" + file_2_string_currently_comparing + "\". Simple text mismatch. Continuing.\n")
 
                 if len(file_1_string_to_compare) == 0 or len(file_2_string_to_compare) == 0:
                     break
@@ -167,13 +170,26 @@ def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines
             else:
                 # else its a tag, compare their innards to make sure they match, otherwise break the compare and
                 # alert that there was a tag mismatch
-                print("On the following lines...\nfile 1: #. " + file_1_full[file_1_start_tag[1]: file_1_end_tag[2]]
-                      + "\nfile 2: #. " + file_2_full[file_2_start_tag[1]: file_2_end_tag[2]] + "\n" +
-                      file_1_string_currently_comparing + " != " + file_2_string_currently_comparing +
-                      ". Tag mismatch. Attempting to continue to end of " + file_1_start_tag[0] + ". Succeeded.\n")
+                print("On the following lines...\nfile 1: " + file_1_line_number + ". " +
+                      file_1_full[file_1_start_tag[1]: file_1_end_tag[2]] + "\nfile 2: " + file_2_line_number + ". " +
+                      file_2_full[file_2_start_tag[1]: file_2_end_tag[2]] + "\n" + file_1_string_currently_comparing +
+                      " != " + file_2_string_currently_comparing + ". Tag mismatch. Attempting to continue to end of " +
+                      file_1_start_tag[0] + ". Succeeded.\n")
                 return index_return
 
     return index_return
+
+
+def get_line_number(file_string_with_lines: str, file_error_start_index: int)-> int:
+    line_count = 1
+    current_string_index = 1
+    for index in range(0, len(file_string_with_lines)):
+        if file_string_with_lines[index] == "$":
+            line_count += 1
+        else:
+            current_string_index += 1
+            if current_string_index == file_error_start_index:
+                return line_count
 
 
 def in_tag(shortened_string: str)->bool:
@@ -307,7 +323,7 @@ def read_html_file(html_file_path: str)->str:
 def strip_white_space(html_string: str, new_lines: bool = False)->str:
     to_return = " ".join(html_string.split()).replace("> <", "><").replace("> ", ">").replace(" <", "<")
     if new_lines:
-        to_return = to_return.replace(">$ ", ">")
+        to_return = to_return.replace(">$ ", ">$")
     return to_return
 
 
