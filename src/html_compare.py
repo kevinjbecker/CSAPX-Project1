@@ -2,10 +2,16 @@ from sys import argv
 
 
 def main():
+    """
+        This is the main function of the program. It makes sure that the file has correct arguments or else it won't
+        run. Handles the main distribution of the file names too.
+
+        :return: None
+    """
     # to add: prompt for file names if argv no have them
     if len(argv) < 3:
         if len(argv) == 2:
-            print("Only one file path specified, assuming that as file 1.")
+            print("Only one file path specified in program call, assuming that as file 1.")
             file_path_1 = argv[1]
         else:
             file_path_1 = input("Enter path for file 1: ")
@@ -39,6 +45,20 @@ def main():
 
 
 def compare_files(file_1_stripped: str, file_1_line_preserved: str, file_2_stripped: str, file_2_line_preserved: str)->int:
+    """
+    Handles the main comparison of the files.
+
+    :param file_1_stripped: The stripped HTML string of file 1. Stripped means there is no extra white space or new line
+    characters.
+    :param file_1_line_preserved: The stripped HTML string of file 1 with the new lines preserved. (New lines are
+    instead saved as a "$")
+    :param file_2_stripped:The stripped HTML string of file 2. Stripped means there is no extra white space or new line
+    characters.
+    :param file_2_line_preserved:The stripped HTML string of file 2 with the new lines preserved. (New lines are
+    instead saved as a "$")
+
+    :return: An integer of the type of file comparison achieved. 0 = match, 1 = partial match, 2 = no match.
+    """
     if file_1_stripped == file_2_stripped:
         return 0
 
@@ -181,10 +201,17 @@ def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines
 
 
 def get_line_number(file_string_with_lines: str, file_error_start_index: int)-> int:
+    """
+
+    :param file_string_with_lines:
+    :param file_error_start_index:
+
+    :return:
+    """
     line_count = 1
     current_string_index = 1
     for index in range(0, len(file_string_with_lines)):
-        if file_string_with_lines[index] == "$":
+        if file_string_with_lines[index] == "%$":
             line_count += 1
         else:
             current_string_index += 1
@@ -200,40 +227,39 @@ def in_tag(shortened_string: str)->bool:
 
 def get_tag_mismatch(file_1_full: str, file_1_shortened: str, file_1_error_start_index: int, file_2_full: str,
                      file_2_shortened: str, file_2_error_start_index: int)->list:
-    file_1_shortened_opposite = file_1_full[:file_1_error_start_index + file_1_shortened.find('>')]
-    file_2_shortened_opposite = file_2_full[:file_2_error_start_index + file_2_shortened.find('>')]
+    # gets the string of file 1 starting at the error index (we don't need anything before
+    file_1_string_starting_at_index = file_1_full[:file_1_error_start_index + file_1_shortened.find('>')]
+    # gets the string of file 2 starting at the error index (we don't need anything before
+    file_2_string_starting_at_index = file_2_full[:file_2_error_start_index + file_2_shortened.find('>')]
 
-    file_1_tag = file_1_shortened_opposite[file_1_shortened_opposite.rfind('<'):]
-    file_2_tag = file_2_shortened_opposite[file_2_shortened_opposite.rfind('<'):]
+    # gets the tag from file 1
+    file_1_tag = file_1_string_starting_at_index[file_1_string_starting_at_index.rfind('<'):]
+    file_2_tag = file_2_string_starting_at_index[file_2_string_starting_at_index.rfind('<'):]
 
-    # gets the parent tag so that we can continue if there is a mismatch
-    file_1_parent_tag = find_parent_tag(file_1_full, file_1_shortened_opposite)
-    file_2_parent_tag = find_parent_tag(file_2_full, file_2_shortened_opposite)
+    # gets the parent tags for each file
+    file_1_parent_tag = find_parent_tag(file_1_full, file_1_string_starting_at_index)
+    file_2_parent_tag = find_parent_tag(file_2_full, file_2_string_starting_at_index)
 
     return [file_1_parent_tag[0], file_1_parent_tag[1], file_2_parent_tag[0], file_2_parent_tag[1], file_1_tag, file_2_tag]
 
 
-def find_parent_tag(file_string: str, file_string_up_to_start_index: str)->list:
-    # a parent tag is the left of two open tags put together
-    index_modifier = 0
+def find_parent_tag(file_string: str, string_up_to_start_index: str)->list:
+    if ">" not in string_up_to_start_index:
+        return [file_string[file_string.find("<"): file_string.find(">")+1], -1]
 
-    if '>' not in file_string_up_to_start_index:
-        return [file_string[file_string.find('<'): file_string.find('>')+1], -1]
+    if string_up_to_start_index.rfind("<") > string_up_to_start_index.rfind(">"):
+        string_up_to_start_index = string_up_to_start_index[:string_up_to_start_index.rfind(">")+1]
 
-    if file_string_up_to_start_index.rfind('<') > file_string_up_to_start_index.rfind('>'):
-        index_modifier += len(file_string_up_to_start_index) - file_string_up_to_start_index.rfind('>')
-        file_string_up_to_start_index = file_string_up_to_start_index[:file_string_up_to_start_index.rfind('>')+1]
-
-    second_tag_start_index = file_string_up_to_start_index.rfind('<')
-    second_tag_end_index = file_string_up_to_start_index.rfind('>')
-    second_tag = file_string_up_to_start_index[second_tag_start_index:second_tag_end_index+1]
+    second_tag_start_index = string_up_to_start_index.rfind("<")
+    second_tag_end_index = string_up_to_start_index.rfind(">")
+    second_tag = string_up_to_start_index[second_tag_start_index:second_tag_end_index+1]
 
     while True:
-        first_tag_start_index = file_string_up_to_start_index[:second_tag_start_index].rfind('<')
-        first_tag_end_index = file_string_up_to_start_index[:second_tag_end_index].rfind('>')
-        first_tag = file_string_up_to_start_index[first_tag_start_index:first_tag_end_index+1]
+        first_tag_start_index = string_up_to_start_index[:second_tag_start_index].rfind("<")
+        first_tag_end_index = string_up_to_start_index[:second_tag_end_index].rfind(">")
+        first_tag = string_up_to_start_index[first_tag_start_index:first_tag_end_index+1]
 
-        if '/' not in first_tag and '/' not in second_tag and second_tag_start_index - first_tag_end_index == 1:
+        if "/" not in first_tag and "/" not in second_tag and second_tag_start_index - first_tag_end_index == 1:
             if first_tag_start_index == 0:
                 return [first_tag, len(file_string)]
 
@@ -246,93 +272,186 @@ def find_parent_tag(file_string: str, file_string_up_to_start_index: str)->list:
         second_tag = first_tag
 
 
-def build_string_until_tag(full_string):
+def build_string_until_tag(string_to_build_from: str)-> str:
+    """
+    Builds a string that is in between two tag markers (can be a tag or just a text string).
+
+    :param string_to_build_from: The string that should be used to build the string until tag.
+
+    :return: The string that appears between the two tag markers.
+    """
+    # The built string that will be returned
     built_string = ""
 
     # though it may seem like this is excess, it is needed since two items are being compared simultaneously
     # this is the fastest way to do it
-    while len(full_string) > 0 and full_string[0] != "<":
-        built_string += full_string[0]
-        full_string = full_string[1:]
+    while len(string_to_build_from) > 0 and string_to_build_from[0] != "<":
+        built_string += string_to_build_from[0]
+        string_to_build_from = string_to_build_from[1:]
 
+    # once we have built the string we can return it
     return built_string
 
 
-def find_previous_open_tag(file_string: str, start_search_index: int)->list:
-    string_copy = file_string[:start_search_index]
-    if string_copy[-1] == '<':
-        string_copy = string_copy[:-1]
-    elif string_copy[-1] == '>':
-        string_copy += file_string[:start_search_index+1]
+def find_previous_open_tag(full_string: str, start_search_index: int)->list:
+    """
+    Used to find the previous tag before the error had been reached.
 
-    current_tag_start_index = string_copy.rfind("<")
-    current_tag_end_index = string_copy.rfind(">")
+    :param full_string: The full string of the HTML file.
+    :param start_search_index: The index to begin searching back from.
 
+    :return: A list containing the previous open tag that appears before start_search_index, the beginning index of that
+    tag and the end index of the tag.
+    """
+
+    # chops the string so that we don't have anything after the start index (we don't need it)
+    string_up_to_start_index = full_string[:start_search_index]
+
+    # if we end on an open tag, that is an issue so we remove one character
+    if string_up_to_start_index[-1] == "<":
+        string_up_to_start_index = string_up_to_start_index[:-1]
+    # if the string ends on a tag we go forward one character just to be safe
+    elif string_up_to_start_index[-1] == ">":
+        string_up_to_start_index += full_string[:start_search_index+1]
+
+    # the current tag's start index is found
+    current_tag_start_index = string_up_to_start_index.rfind("<")
+
+    # the current tag's end index is found
+    current_tag_end_index = string_up_to_start_index.rfind(">")
+
+    # we need to keep looping until we get a solution so we just create this infinite loop
     while True:
-        tag = file_string[current_tag_start_index: current_tag_end_index+1]
+        # gets the tag
+        tag = full_string[current_tag_start_index: current_tag_end_index+1]
+        # if it isn't a close tag, we have arrived at the point we want to be at
         if "/" not in tag:
             return [tag, current_tag_start_index, current_tag_end_index+1]
-        else:
-            string_copy = string_copy[:current_tag_start_index]
-            current_tag_start_index = string_copy.rfind("<")
-            current_tag_end_index = string_copy.rfind(">")
+        # otherwise we keep searching by resetting the string, and getting the next tag
+        string_up_to_start_index = string_up_to_start_index[:current_tag_start_index]
+        current_tag_start_index = string_up_to_start_index.rfind("<")
+        current_tag_end_index = string_up_to_start_index.rfind(">")
 
 
 def find_matching_close_tag(file_string: str, start_search_index: int, tag_to_match: str)->list:
-    string_copy = file_string[start_search_index-1:]
+    """
+    Finds the matching close tag, starting from start_search_index that matches tag_to_match
+
+    :param file_string: The entire file_string that is to be searched.
+    :param start_search_index: The index of file_string that the search should begin from.
+    :param tag_to_match: The tag that is to be matched.
+
+    :return: A list containing tag, the index to begin the search from, and its end index.
+    """
+
+    # removes the beginning part of the string since we don't need that (we subtract one just in case the
+    # string starts at a tag
+    string_starting_at_index = file_string[start_search_index-1:]
+    # the final start index is the start_search_index-1
     final_start_index = start_search_index-1
+    # the number of close tags remaining is 1 (this is used in case we find other open tags, we need to keep track
+    # of how many that we have to find before we can return
     close_tags_remaining = 1
 
-    if string_copy.find("<") > string_copy.find(">"):
-        final_start_index += string_copy.find("<")
-        string_copy = string_copy[string_copy.find("<"):]
+    # if the string has a ">" before a "<", that is an issue and we need to resolve that as done here
+    if string_starting_at_index.find("<") > string_starting_at_index.find(">"):
+        final_start_index += string_starting_at_index.find("<")
+        string_starting_at_index = string_starting_at_index[string_starting_at_index.find("<"):]
 
-    current_tag_start_index = string_copy.find("<")
+    # the index of the first tag
+    current_tag_start_index = string_starting_at_index.find("<")
+    # the final index in the original string can be updated to be the index
+    # this is because we its location is index away from the start_index
     final_start_index += current_tag_start_index
 
-    current_tag_end_index = string_copy.find(">")
+    # the end index of the tag can now be found
+    current_tag_end_index = string_starting_at_index.find(">")
 
+    # this loop needs to go forever until we get an answer
     while True:
+        # if the index can't be found (i.e. returns -1)
         if current_tag_end_index == -1:
             return ["", -1, -1]
 
-        tag = string_copy[current_tag_start_index: current_tag_end_index+1]
+        # the actual tag is found here
+        tag = string_starting_at_index[current_tag_start_index: current_tag_end_index+1]
+        # the final start of the index is updated to be the length of the tag
         final_start_index += len(tag)
 
+        # if we find another open tag that matches the requested we need to go until we find enough close tags
         if tag == tag_to_match:
             close_tags_remaining += 1
-        elif tag.replace('/', '') == tag_to_match:
+        # else if we get a close tag and it matches the tag we are seeking
+        elif tag.replace("/", "") == tag_to_match:
+            # subtract one from the remaining close tags
             close_tags_remaining -= 1
+            # if we've reached enough close tags, we can now return since we've hit our desired point
             if close_tags_remaining == 0:
                 final_start_index -= len(tag)
                 return [tag, final_start_index, final_start_index + len(tag)]
-        string_copy = string_copy[current_tag_end_index + 1:]
-        current_tag_start_index = string_copy.find("<")
-        current_tag_end_index = string_copy.find(">")
+
+        # if we get to this point, it sets us up for the next tag performing similar actions before the loop
+        string_starting_at_index = string_starting_at_index[current_tag_end_index + 1:]
+        current_tag_start_index = string_starting_at_index.find("<")
+        current_tag_end_index = string_starting_at_index.find(">")
         final_start_index += current_tag_start_index
 
 
 def read_html_file(html_file_path: str)->str:
+    """
+    Reads in an HTML file and returns it as a single string.
+
+    :param html_file_path: The path to the HTML file.
+
+    :return: The read in HTML file as a single string.
+    """
+
+    # makes a blank string that we will eventually return
     html_file_string = ""
+
+    # opens the file and keeps it open
     with open(html_file_path) as file:
+        # goes through each lines
         for line in file:
             html_file_string += line
+
+    # return the read in file
     return html_file_string
 
 
-def strip_white_space(html_string: str, new_lines: bool = False)->str:
-    to_return = " ".join(html_string.split()).replace("> <", "><").replace("> ", ">").replace(" <", "<")
-    if new_lines:
-        to_return = to_return.replace(">$ ", ">$")
-    return to_return
+def strip_white_space(html_string: str)->str:
+    """
+    Strips any excess whitespace from the HTML (usually around the tags)
+
+    :param html_string: The html_string to have the new line characters removed from
+
+    :return: The new string with no excess whitespace
+    """
+
+    return " ".join(html_string.split()).replace("> <", "><").replace("> ", ">").replace(" <", "<")\
+        .replace(">%$ ", ">%$").replace(" %$<", "%$<")
 
 
 def strip_new_lines(html_string: str)->str:
-    return strip_white_space(html_string.replace('\n', ''))
+    """
+    Strips all of the new line characters from html_string.
+
+    :param html_string: The html_string to have the new line characters removed from
+
+    :return: The new string with no new line characters
+    """
+    return strip_white_space(html_string.replace("\n", ""))
 
 
 def replace_new_lines(html_string: str)->str:
-    return strip_white_space(html_string.replace('\n', '$'), True)
+    """
+    Replaces the new line characters with a "%$" string. This is used to determine line number later on in the process.
+
+    :param html_string: The html_string to have the new line characters replaced
+
+    :return: The new string with no new line characters and a "%$" in its place
+    """
+    return strip_white_space(html_string.replace("\n", "%$"))
 
 
 if __name__ == '__main__':
