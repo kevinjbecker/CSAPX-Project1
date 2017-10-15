@@ -8,6 +8,7 @@ def main():
 
         :return: None
     """
+
     # to add: prompt for file names if argv no have them
     if len(argv) < 3:
         if len(argv) == 2:
@@ -26,6 +27,7 @@ def main():
     if file_path_1 == file_path_2:
         print("Files point to same path.\nFiles match.")
     else:
+        # reads in file 1 and 2
         file_1_html = read_html_file(file_path_1)
         file_2_html = read_html_file(file_path_2)
 
@@ -33,14 +35,17 @@ def main():
         if file_1_html == file_2_html:
             print("Files match.")
         else:
+            # strips file 1 and removes new lines
             file_1_stripped = strip_new_lines(file_1_html)
-            file_1_line_preserved = replace_new_lines(file_1_html)
+            # strips file 1 but preserves new lines
+            file_1_line_preserved = strip_white_space(file_1_html)
+            # does the same as above for file 2
             file_2_stripped = strip_new_lines(file_2_html)
-            file_2_line_preserved = replace_new_lines(file_2_html)
+            file_2_line_preserved = strip_white_space(file_2_html)
 
             # EXIT CODE KEY: 0 = MATCH, 1 = PARTIAL MATCH, 2 = NO MATCH
             exit_code = compare_files(file_1_stripped, file_1_line_preserved, file_2_stripped, file_2_line_preserved)
-
+            # print the exit code and we have completed.
             print(exit_codes[exit_code])
 
 
@@ -59,54 +64,92 @@ def compare_files(file_1_stripped: str, file_1_line_preserved: str, file_2_strip
 
     :return: An integer of the type of file comparison achieved. 0 = match, 1 = partial match, 2 = no match.
     """
+
+    # if they equal each other, they match, no need to waste time going through
     if file_1_stripped == file_2_stripped:
         return 0
 
+    # gets the stripped and keeps them as a copy so that we can reference them if needed
     file_1_stripped_full = file_1_stripped
     file_2_stripped_full = file_2_stripped
 
-    index_file_1 = 0
-    index_file_2 = 0
+    # the current index of file 1
+    current_index_file_1 = 0
+    # the current index of file 2
+    current_index_file_2 = 0
+
+    # we have not encountered any mismatches
     mismatches = False
 
+    # while file_1 still has stuff
     while len(file_1_stripped) > 0:
-        index_file_1 += 1
-        index_file_2 += 1
+        # add one to the current index of each file
+        current_index_file_1 += 1
+        current_index_file_2 += 1
+        # if we've hit the end of file 2 before file 1, report the error and stop
         if len(file_2_stripped) == 0:
             print("Unexpected end of file 2. Aborting operation.")
             return 2
+        # else if they don't equal each other
         elif file_1_stripped[0] != file_2_stripped[0]:
+            # we've hit a mismatch (used later in the program)
             mismatches = True
-            # find_and_report_errors will find the errors
-            continue_points = find_and_report_errors(file_1_stripped_full, file_1_stripped, file_1_line_preserved, index_file_1,
-                                                     file_2_stripped_full, file_2_stripped, file_2_line_preserved, index_file_2)
+            # find_and_report_errors will find the errors in this and report them
+            continue_points = find_and_report_errors(file_1_stripped_full, file_1_stripped, file_1_line_preserved, current_index_file_1,
+                                                     file_2_stripped_full, file_2_stripped, file_2_line_preserved, current_index_file_2)
+
+            # if continue_points is a boolean that is false we've hit an issue and need to interrupt and stop
+            # or if the continue_point[0] is -1
             if type(continue_points) == bool and not continue_points or continue_points[0] == -1:
                 return 2
+            # otherwise we can fix our locations and continue
             else:
+                # file_1_stripped removes any stuff between 0 and current_point[0]
                 file_1_stripped = file_1_stripped[continue_points[0]:]
-                index_file_1 += continue_points[0]
+                # updates our current index to reflect what was done above
+                current_index_file_1 += continue_points[0]
+                # file_2_stripped removes any stuff between 0 and current_point[0]
                 file_2_stripped = file_2_stripped[continue_points[1]:]
-                index_file_2 += continue_points[1]
+                # updates the index too reflect what is done above
+                current_index_file_2 += continue_points[1]
 
+        # removes the first character of file 1
         file_1_stripped = file_1_stripped[1:]
+        # removes the first character of file 2
         file_2_stripped = file_2_stripped[1:]
 
+    # if file 1 ends before file 2, that's bad
     if len(file_2_stripped) > 0:
         print("Unexpected end of file 1. Aborting operation.")
         return 2
-
+    # return 1 if there is a mismatch, otherwise they match
     return 1 if mismatches else 0
 
 
 def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines: str, file_1_error_start_index: int,
                            file_2_full: str, file_2_shortened: str, file_2_lines: str, file_2_error_start_index: int):
+    """
+    Finds the error(s) that ha(s/ve) been caught in compare_files and alerts the user about them.
+
+    :param file_1_full: The full file_1 string
+    :param file_1_shortened: The shortened file_1 string
+    :param file_1_lines: The file_1 string with the lines preserved
+    :param file_1_error_start_index: The index that the error began on in file_1
+    :param file_2_full: The full file_2 string
+    :param file_2_shortened: The shortened file_2 string
+    :param file_2_lines: The file_2 string with the lines preserved
+    :param file_2_error_start_index: The index that the error began on in file_2
+    :return:
+    """
 
     # the eventual return if find_and_report completes; lets the function that calls it know what to remove.
     index_return = []
 
+    # gets the line number for both files (used to report the errors)
     file_1_line_number = str(get_line_number(file_1_lines, file_1_error_start_index))
     file_2_line_number = str(get_line_number(file_2_lines, file_2_error_start_index))
 
+    # if we're in a tag, we need a different set of operations than not in a tag
     if in_tag(file_1_shortened) or in_tag(file_2_shortened):
         # if we're in a tag, we need to find the tag-mismatch, this does that
         tag_mismatch = get_tag_mismatch(file_1_full, file_1_shortened, file_1_error_start_index, file_2_full,
@@ -153,9 +196,11 @@ def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines
     # strip the outermost tags of the file 2 string to compare (we don't need it, we already know they match)
     file_2_string_to_compare = file_2_string_to_compare[file_2_string_to_compare.find('>') + 1:file_2_string_to_compare.rfind('<')]
 
+    # creates two empty strings for comparing
     file_1_string_currently_comparing = ""
     file_2_string_currently_comparing = ""
 
+    # we need to keep looping until we get to a result in which case we return
     while True:
         if len(file_1_string_to_compare) == 0 or len(file_2_string_to_compare) == 0:
             break
@@ -178,15 +223,19 @@ def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines
                       file_2_full[file_2_start_tag[1]: file_2_end_tag[2]] + "\n\"" + file_1_string_currently_comparing +
                       "\" != \"" + file_2_string_currently_comparing + "\". Simple text mismatch. Continuing.\n")
 
+                # if either file is empty, we break the loop
                 if len(file_1_string_to_compare) == 0 or len(file_2_string_to_compare) == 0:
                     break
 
+                # we add the first character to the built string
                 file_1_string_currently_comparing = file_1_string_to_compare[0]
                 file_2_string_currently_comparing = file_2_string_to_compare[0]
 
+                # we update the strings to compare so we have built to remove the first character
                 file_1_string_to_compare = file_1_string_to_compare[1:]
                 file_2_string_to_compare = file_2_string_to_compare[1:]
             # otherwise it's a tag error within the current tag and we can tell the user this information
+            # (this is from the outer if above)
             else:
                 # else its a tag, compare their innards to make sure they match, otherwise break the compare and
                 # alert that there was a tag mismatch
@@ -202,31 +251,60 @@ def find_and_report_errors(file_1_full: str, file_1_shortened: str, file_1_lines
 
 def get_line_number(file_string_with_lines: str, file_error_start_index: int)-> int:
     """
+    Gets the line number where there was an error.
 
-    :param file_string_with_lines:
+    :param file_string_with_lines: The file string with the new line characters
     :param file_error_start_index:
 
     :return:
     """
+
+    # the line count
     line_count = 1
     current_string_index = 1
+    # loop through the entire file_string_with_lines until we get to where we want
     for index in range(0, len(file_string_with_lines)):
-        if file_string_with_lines[index] == "%$":
+        # if there's anew line, add one to the line count
+        if file_string_with_lines[index] == "\n":
             line_count += 1
+        # otherwise we can add one to the index and check if we're done
         else:
             current_string_index += 1
             if current_string_index == file_error_start_index:
                 return line_count
 
 
-def in_tag(shortened_string: str)->bool:
-    if shortened_string.find(">") < shortened_string.find('<') or ('<' not in shortened_string and '>' in shortened_string):
+def in_tag(file_string: str)->bool:
+    """
+    Finds if the current error is in a tag or not
+
+    :param file_string: The current string being searched
+
+    :return: True or False; True if currently in a tag
+    """
+
+    # if we're currently in a tag, return true
+    if file_string.find(">") < file_string.find('<') or ('<' not in file_string and '>' in file_string):
         return True
+    # false otherwise
     return False
 
 
 def get_tag_mismatch(file_1_full: str, file_1_shortened: str, file_1_error_start_index: int, file_2_full: str,
                      file_2_shortened: str, file_2_error_start_index: int)->list:
+    """
+    Finds the mismatch in tags and gives the parent tags so that the diff can continue forward from the mismatch
+
+    :param file_1_full: The full string of file 1
+    :param file_1_shortened: The current shortened string of file 1
+    :param file_1_error_start_index: The beginning error index of file 1
+    :param file_2_full: The full string of file 2
+    :param file_2_shortened: The current shortened string of file 2
+    :param file_2_error_start_index: The beginning error index of file 2
+    :return: A list containing the following: the file_1_parent closing tag, that tag's start index, the same for file 2
+    and finally the tags that were mismatched
+    """
+
     # gets the string of file 1 starting at the error index (we don't need anything before
     file_1_string_starting_at_index = file_1_full[:file_1_error_start_index + file_1_shortened.find('>')]
     # gets the string of file 2 starting at the error index (we don't need anything before
@@ -234,12 +312,14 @@ def get_tag_mismatch(file_1_full: str, file_1_shortened: str, file_1_error_start
 
     # gets the tag from file 1
     file_1_tag = file_1_string_starting_at_index[file_1_string_starting_at_index.rfind('<'):]
+    # gets the tag from file 2
     file_2_tag = file_2_string_starting_at_index[file_2_string_starting_at_index.rfind('<'):]
 
-    # gets the parent tags for each file
+    # gets the parent tags for each file (for moving forward)
     file_1_parent_tag = find_parent_tag(file_1_full, file_1_string_starting_at_index)
     file_2_parent_tag = find_parent_tag(file_2_full, file_2_string_starting_at_index)
 
+    # returns the found data
     return [file_1_parent_tag[0], file_1_parent_tag[1], file_2_parent_tag[0], file_2_parent_tag[1], file_1_tag, file_2_tag]
 
 
@@ -280,6 +360,7 @@ def build_string_until_tag(string_to_build_from: str)-> str:
 
     :return: The string that appears between the two tag markers.
     """
+
     # The built string that will be returned
     built_string = ""
 
@@ -429,7 +510,7 @@ def strip_white_space(html_string: str)->str:
     """
 
     return " ".join(html_string.split()).replace("> <", "><").replace("> ", ">").replace(" <", "<")\
-        .replace(">%$ ", ">%$").replace(" %$<", "%$<")
+        .replace(">\n ", ">\n").replace(" \n<", "\n<")
 
 
 def strip_new_lines(html_string: str)->str:
@@ -441,17 +522,6 @@ def strip_new_lines(html_string: str)->str:
     :return: The new string with no new line characters
     """
     return strip_white_space(html_string.replace("\n", ""))
-
-
-def replace_new_lines(html_string: str)->str:
-    """
-    Replaces the new line characters with a "%$" string. This is used to determine line number later on in the process.
-
-    :param html_string: The html_string to have the new line characters replaced
-
-    :return: The new string with no new line characters and a "%$" in its place
-    """
-    return strip_white_space(html_string.replace("\n", "%$"))
 
 
 if __name__ == '__main__':
